@@ -2,7 +2,7 @@
 
 Submission for `Project Euler #54: Poker hands` on Hacker Rank
 
-I wanted to avoid a massive switch-style statement where I essentially checked to see if the hand was a pair, two-pair, 3-of-a-kind, full house, etc etc.
+I wanted to avoid a massive switch-style statement where I check if the hand is a pair, two-pair, 3-of-a-kind, full house, etc etc.
 
 So, `evalHand` takes a hand array as an argument (e.g. `['TH', 'TC', '6S', '7S', 'KD']`) and returns an object describing the frequency of each card in the hand (e.g. `{cardCount: [2, 1, 1, 1], cards: [10, 6, 7, 13]}`)
 
