@@ -3,8 +3,51 @@ const _ = require("lodash");
 const aceStraight = [2,3,4,5,14];
 const cardValueLookup = {'2' : 2, '3' : 3, '4' : 4, '5' : 5, '6' : 6, '7' : 7, '8' : 8, '9' : 9, 'T' : 10, 'J' : 11, 'Q' : 12, 'K' : 13, 'A' : 14}
 
+const handTypes = [
+    {
+        id: 'pair',
+        cardCount: [2, 1, 1, 1],
+        rank: 1
+    },
+    {
+        id: 'two pair',
+        cardCount: [2, 2, 1],
+        rank: 2
+    },
+    {
+        id: 'three of a kind',
+        cardCount: [3, 1, 1],
+        rank: 3
+    },
+    {
+        id: 'straight',
+        cardCount: [null],
+        rank: 4
+    },
+    {
+        id: 'flush',
+        cardCount: [null],
+        rank: 5
+    },
+    {
+        id: 'full house',
+        cardCount: [3, 2],
+        rank: 6
+    },
+    {
+        id: 'four of a kind',
+        cardCount: [3, 2],
+        rank: 7
+    },
+    {
+        id: 'straight flush',
+        cardCount: [null],
+        rank: 8
+    }
+];
+
 var testHands = [
-    "5H 5C 6S 7S KD 2C 3S 8S 8D TD",
+    "AH 2H 3H 4H 5H TC JC QC KC AC",
     "5D 8C 9S JS AC 2C 5C 7D 8S QH",
     "2D 9C AS AH AC 3D 6D 7D TD QD",
     "4D 6S 9H QH QC 3D 6D 7H QD QS",
@@ -15,18 +58,61 @@ testHands.forEach(function(hand){
     whoWins(hand);
 });
 
+function Card(card){
+    this.face = cardValueLookup[card[0]];
+    this.suit = card[1];
+    return this;
+}
+
+//hand is array of Card objects
+function Hand(hand) {
+    this.hand = hand;
+    this.getHandRank = function(){
+        var hand = this.hand;
+        //comparing only face's of the cards
+        var faces = _.map(hand, 'face');
+        //group cards by count and return array of card counts
+        var cardCountObj = _.countBy(faces);
+        var cardCount = _.keys(cardCountObj).map(function(key){
+            return cardCountObj[key];
+        });
+        //now that we have an array representing our card counts, find a matching array in possible handTypes
+        var foundHandType = handTypes.find(function(handType){
+            return handType.cardCount.every(count => cardCount.indexOf(count) > -1) 
+            && handType.cardCount.length === cardCount.length;
+        });
+        if(foundHandType) {
+            return foundHandType.rank;
+        } else {
+            return handleStraightAndFlush(hand) || 0;
+        }
+    }
+    //Used to settle ties. Sorts card faces by count and in descending order when counts are equal
+    this.getKicker = function(){
+        var hand = this.hand;
+        var faces = _.map(hand, 'face');
+        var cardCountMap = _.countBy(faces);
+        var cardsSortedByCount = _.keys(cardCountMap).sort(function(a, b) {
+            return cardCountMap[a] > cardCountMap[b];
+        });
+        return cardsSortedByCount.reverse().map(function(cardFace){
+            return parseInt(cardFace);
+        });
+    }
+    return this;
+}
+
 function whoWins(input) {
-    var playerHands = buildHands(input);
-    var p1 = evalHand(playerHands.p1Hand);
-    var p2 = evalHand(playerHands.p2Hand);
-    
     var winner = "";
-    if(_.isEqual(p1.cardCounts, p2.cardCounts) && _.isEqual(p1.cards, p2.cards)) {
-        winner = "Nobody";
-    } else if(_.isEqual(p1.cardCounts, p2.cardCounts)) {
-        winner = p1.cards > p2.cards ? "Player 1" : "Player 2";
+    var playerHands = buildHands(input);
+    var hand1 = playerHands.p1Hand;
+    var hand2 = playerHands.p2Hand;
+    var hand1Rank = hand1.getHandRank();
+    var hand2Rank = hand2.getHandRank();
+    if(hand1Rank === hand2Rank) {
+        winner =  hand1.getKicker() > hand2.getKicker() ? "Player 1" : "Player 2";
     } else {
-        winner = p1.cardCounts > p2.cardCounts ? "Player 1" : "Player 2";
+        winner = hand1Rank > hand2Rank ? "Player 1" : "Player 2";
     }
     console.log(winner);
 }
@@ -34,69 +120,41 @@ function whoWins(input) {
 function buildHands(rawInput) {
     var p1 = rawInput.substring(0, rawInput.length/2).trim();
     var p2 = rawInput.substring(rawInput.length/2, rawInput.length).trim();
-    var p1Hand = p1.split(" ");
-    var p2Hand = p2.split(" ");
+    var p1Hand = p1.split(" ").map(function(card){
+        return new Card(card);
+    });
+    var p2Hand = p2.split(" ").map(function(card){
+        return new Card(card);
+    });
     return {
-        p1Hand: p1Hand,
-        p2Hand: p2Hand
+        p1Hand: new Hand(p1Hand),
+        p2Hand: new Hand(p2Hand)
     }
 }
 
-//argument hand example: ['2C', 'TH', 'TC', '2S', 'TS'] ---> full house 10s full of 2s
-function evalHand(hand) {
-    //ex. cardCountMap {'2': 2, 'T': 3}
-    var cardCountMap = _.countBy(hand, function(card){
-        return card[0];
-    });
-    //ex. cardsSortedByCount ['T', '2']
-    var cardsSortedByCount = Object.keys(cardCountMap).sort(function(a, b) {
-        return cardCountMap[a] < cardCountMap[b];
-    });
-    //ex. cardCounts [3, 2]
-    var cardCounts = cardsSortedByCount.map(function(card){
-        return cardsWithCount[card];
-    });
-    //ex. cardCounts [10, 2]
-    var cardFaces = cardsSortedByCount.map(function(key){
-        return cardValueLookup[key];
-    });
-    return {
-        cardCounts: handleStraightAndFlush(cardFaces, hand) || cardCounts,
-        cards: cardFaces
-    }
-}
-
-function handleStraightAndFlush(cardFaces, hand){
-    var straight = isStraight(cardFaces);
+function handleStraightAndFlush(hand){
+    var straight = isStraight(hand);
     var flush = isFlush(hand);
     if(straight && flush) {
-        //Best hand possible. [5] beats [4,1] aka four of a kind
-        return [5];
+        return 8;
     } else if(straight) {
-        /**1.5 is arbitrary, just needs to be greater than 1 (to beat [3,1,1] aka three of a kind) 
-            and less than flush value (see below)
-         **/
-        return [3, 1.5];
-    } else if (flush) {
-        /**1.9 is arbitrary, just needs to be greater than 1 (to beat [3,1,1] aka three of a kind) 
-            and less than 2 (loses to [3,2] aka full house)
-         **/
-        return [3, 1.9];
+        return 4;
+    } else if(flush) {
+        return 5;
     }
 }
 
 function isFlush(hand) {
     var suitsWithCount = _.countBy(hand, function(card){
-        return card[1];
+        return card.suit;
     });
     return Object.keys(suitsWithCount).length === 1;
 }
 
-function isStraight(cardFaces) {
-    //sort ascending
-    cardFaces = cardFaces.sort(function(cardA, cardB){
+function isStraight(hand) {
+    var cardFaces = _.map(hand, 'face');
+    var cardFacesSorted = cardFaces.sort(function(cardA, cardB){
         return cardA > cardB;
     });
-    var isStraight = cardFaces.length === 5 && (cardFaces[4] - cardFaces[0] === 4 || _.isEqual(cardFaces, aceStraight));
-    return isStraight;
+    return (cardFacesSorted[4] - cardFacesSorted[0] === 4 || _.isEqual(cardFacesSorted, aceStraight));
 }
